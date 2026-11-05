@@ -13,9 +13,8 @@ A desktop security operations center and talent dashboard built with **PyQt6** a
 - **psutil / sockets** (System Telemetry & Network Monitoring)
 
 ## Screenshots
-*(Add at least two screenshots of your running application here before submitting)*
-![Dashboard Overview](path/to/screenshot1.png)
-![Security Panel](path/to/screenshot2.png)
+<img width="1366" height="768" alt="Dashboard ss" src="https://github.com/user-attachments/assets/b90b1501-999e-44ef-8798-d947cfe64d92" />
+<img width="1349" height="117" alt="Command Panel" src="https://github.com/user-attachments/assets/34fc73c2-872d-48db-84df-664f1adc6c72" />
 
 ## Getting Started
 
