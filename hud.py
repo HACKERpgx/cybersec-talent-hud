@@ -1,4 +1,6 @@
+import json
 import sys
+import urllib.request
 import psutil
 from PyQt6.QtCore import QThread, Qt, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -14,8 +16,36 @@ from PyQt6.QtWidgets import (
 )
 
 
+class GitHubWorker(QThread):
+  """Background thread to fetch live GitHub stats from the public API."""
+
+  update_signal = pyqtSignal(str)
+
+  def run(self):
+    try:
+      url = "https://api.github.com/users/HACKERpgx"
+      req = urllib.request.Request(
+          url, headers={"User-Agent": "CyberSec-Talent-HUD"}
+      )
+      with urllib.request.urlopen(req, timeout=5) as response:
+        data = json.loads(response.read().decode())
+        public_repos = data.get("public_repos", "N/A")
+        followers = data.get("followers", "N/A")
+        name = data.get("name", "HACKERpgx")
+        self.update_signal.emit(
+            f"[+] GitHub API Connected Successfully!\n"
+            f"    • User: {name} (@HACKERpgx)\n"
+            f"    • Public Repositories: {public_repos}\n"
+            f"    • Followers: {followers}"
+        )
+    except Exception as e:
+      self.update_signal.emit(
+          f"[!] GitHub API Warning: Could not fetch live stats ({str(e)})"
+      )
+
+
 class TelemetryWorker(QThread):
-  """Background thread to fetch live metrics without blocking the UI."""
+  """Background thread to fetch live system metrics without blocking the UI."""
 
   update_signal = pyqtSignal(str)
 
@@ -42,6 +72,7 @@ class CyberSecHUD(QMainWindow):
     super().__init__()
     self.alarm_active = False
     self.initUI()
+    self.load_github_stats()  # Fetch GitHub stats on startup
 
   def initUI(self):
     self.setWindowTitle("CyberSec-Talent HUD | Ops Center")
@@ -95,19 +126,15 @@ class CyberSecHUD(QMainWindow):
     talent_card = QWidget()
     talent_card.setObjectName("Card")
     talent_layout = QVBoxLayout(talent_card)
-    talent_title = QLabel("📊 Talent & Skill Metrics")
+    talent_title = QLabel("📊 Talent & Skill Metrics (Live GitHub)")
     talent_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
 
-    stats_label = QLabel(
-        "• GitHub Portfolio: HACKERpgx\n• Focus Areas: Cybersecurity & Python"
-        " HUDs\n• Hack Club Half Life: Week 5 (Design Your Own)\n• Lab & CTF"
-        " Track: Active"
-    )
-    stats_label.setFont(QFont("Segoe UI", 10))
-    stats_label.setAlignment(Qt.AlignmentFlag.AlignTop)  # Fixed alignment call
+    self.talent_log = QTextEdit()
+    self.talent_log.setReadOnly(True)
+    self.talent_log.append("[~] Connecting to GitHub API for HACKERpgx...")
 
     talent_layout.addWidget(talent_title)
-    talent_layout.addWidget(stats_label)
+    talent_layout.addWidget(self.talent_log)
     grid_layout.addWidget(talent_card, 0, 1)
 
     # --- TILE 3: Operations Command Panel (Bottom) ---
@@ -131,13 +158,21 @@ class CyberSecHUD(QMainWindow):
     grid_layout.setColumnStretch(0, 1)
     grid_layout.setColumnStretch(1, 1)
 
+  def load_github_stats(self):
+    self.gh_worker = GitHubWorker()
+    self.gh_worker.update_signal.connect(self.append_talent_log)
+    self.gh_worker.start()
+
+  def append_talent_log(self, text):
+    self.talent_log.append(text)
+
   def run_telemetry_scan(self):
     self.sec_log.append("\n[~] Scanning system telemetry...")
     self.worker = TelemetryWorker()
-    self.worker.update_signal.connect(self.append_log)
+    self.worker.update_signal.connect(self.append_sec_log)
     self.worker.start()
 
-  def append_log(self, text):
+  def append_sec_log(self, text):
     self.sec_log.append(text)
 
   def toggle_alarm(self):
