@@ -21,14 +21,12 @@ class TelemetryWorker(QThread):
 
   def run(self):
     try:
-      # Fetch active network connections using psutil
       connections = psutil.net_connections(kind="inet")
       active_count = sum(1 for c in connections if c.status == "ESTABLISHED")
       self.update_signal.emit(
           f"[+] Active Established Connections: {active_count}"
       )
 
-      # Fetch CPU and Memory usage
       cpu_usage = psutil.cpu_percent(interval=1)
       mem_usage = psutil.virtual_memory().percent
       self.update_signal.emit(
@@ -49,7 +47,6 @@ class CyberSecHUD(QMainWindow):
     self.setWindowTitle("CyberSec-Talent HUD | Ops Center")
     self.setGeometry(100, 100, 1100, 700)
 
-    # Dark Theme Palette Styling
     self.setStyleSheet(
         """
             QMainWindow { background-color: #0F172A; }
@@ -107,7 +104,7 @@ class CyberSecHUD(QMainWindow):
         " Track: Active"
     )
     stats_label.setFont(QFont("Segoe UI", 10))
-    stats_label.setAlignment(Alignment = Qt.AlignmentFlag.AlignTop)
+    stats_label.setAlignment(Qt.AlignmentFlag.AlignTop)  # Fixed alignment call
 
     talent_layout.addWidget(talent_title)
     talent_layout.addWidget(stats_label)
@@ -131,7 +128,6 @@ class CyberSecHUD(QMainWindow):
     control_layout.addWidget(self.btn_alert)
     grid_layout.addWidget(control_card, 1, 0, 1, 2)
 
-    # Balanced grid column stretch
     grid_layout.setColumnStretch(0, 1)
     grid_layout.setColumnStretch(1, 1)
 
