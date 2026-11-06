@@ -1,4 +1,5 @@
 import json
+import socket
 import sys
 import urllib.request
 import psutil
@@ -7,6 +8,8 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
     QGridLayout,
+    QHBoxLayout,
+    QLineEdit,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -16,8 +19,43 @@ from PyQt6.QtWidgets import (
 )
 
 
+class PortScannerWorker(QThread):
+  """Background thread to scan targeted network ports asynchronously."""
+
+  update_signal = pyqtSignal(str)
+
+  def __init__(self, target_host):
+    super().__init__()
+    self.target_host = target_host
+
+  def run(self):
+    target_ports = [21, 22, 80, 443, 8080, 3306, 5432]
+    self.update_signal.emit(
+        f"[~] Initiating Port Audit on host: {self.target_host}..."
+    )
+    open_ports = 0
+
+    for port in target_ports:
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      sock.settimeout(0.5)
+      result = sock.connect_ex((self.target_host, port))
+      if result == 0:
+        self.update_signal.emit(
+            f"    [!] PORT OPEN: {port} (Service active/listening)"
+        )
+        open_ports += 1
+      else:
+        self.update_signal.emit(f"    [-] Port Closed/Filtered: {port}")
+      sock.close()
+
+    self.update_signal.emit(
+        f"[+] Audit Complete: Found {open_ports} open ports on"
+        f" {self.target_host}."
+    )
+
+
 class GitHubWorker(QThread):
-  """Background thread to fetch live GitHub stats from the public API."""
+  """Background thread to fetch live GitHub stats from public API."""
 
   update_signal = pyqtSignal(str)
 
@@ -72,11 +110,11 @@ class CyberSecHUD(QMainWindow):
     super().__init__()
     self.alarm_active = False
     self.initUI()
-    self.load_github_stats()  # Fetch GitHub stats on startup
+    self.load_github_stats()
 
   def initUI(self):
     self.setWindowTitle("CyberSec-Talent HUD | Ops Center")
-    self.setGeometry(100, 100, 1100, 700)
+    self.setGeometry(100, 100, 1100, 750)
 
     self.setStyleSheet(
         """
@@ -89,9 +127,14 @@ class CyberSecHUD(QMainWindow):
             }
             QPushButton { 
                 background-color: #3B82F6; color: white; 
-                border-radius: 4px; padding: 10px; font-weight: bold;
+                border-radius: 4px; padding: 8px 12px; font-weight: bold;
             }
             QPushButton:hover { background-color: #2563EB; }
+            QLineEdit {
+                background-color: #090D16; color: #38BDF8;
+                border: 1px solid #334155; border-radius: 4px; padding: 6px;
+                font-family: 'Consolas', monospace;
+            }
             QTextEdit { 
                 background-color: #090D16; color: #38BDF8; 
                 border: 1px solid #334155; font-family: 'Consolas', monospace; 
@@ -137,22 +180,39 @@ class CyberSecHUD(QMainWindow):
     talent_layout.addWidget(self.talent_log)
     grid_layout.addWidget(talent_card, 0, 1)
 
-    # --- TILE 3: Operations Command Panel (Bottom) ---
+    # --- TILE 3: Operations & Port Audit Panel (Bottom) ---
     control_card = QWidget()
     control_card.setObjectName("Card")
     control_layout = QVBoxLayout(control_card)
-    control_title = QLabel("⚙️ Operations Command Console")
+    control_title = QLabel("⚙️ Operations & Port Audit Console")
     control_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
 
-    self.btn_scan = QPushButton("Run Live System & Network Scan")
+    # Port Scan Controls Row
+    scan_row = QHBoxLayout()
+    self.host_input = QLineEdit()
+    self.host_input.setText("127.0.0.1")
+    self.host_input.setPlaceholderText("Target IP/Host (e.g. 127.0.0.1)")
+
+    self.btn_port_scan = QPushButton("Run Port Audit")
+    self.btn_port_scan.clicked.connect(self.run_port_scan)
+
+    scan_row.addWidget(self.host_input)
+    scan_row.addWidget(self.btn_port_scan)
+
+    # Global Buttons Row
+    btn_row = QHBoxLayout()
+    self.btn_scan = QPushButton("Run Telemetry Scan")
     self.btn_scan.clicked.connect(self.run_telemetry_scan)
 
-    self.btn_alert = QPushButton("Toggle Intrusion Alarm State")
+    self.btn_alert = QPushButton("Toggle Intrusion Alarm")
     self.btn_alert.clicked.connect(self.toggle_alarm)
 
+    btn_row.addWidget(self.btn_scan)
+    btn_row.addWidget(self.btn_alert)
+
     control_layout.addWidget(control_title)
-    control_layout.addWidget(self.btn_scan)
-    control_layout.addWidget(self.btn_alert)
+    control_layout.addLayout(scan_row)
+    control_layout.addLayout(btn_row)
     grid_layout.addWidget(control_card, 1, 0, 1, 2)
 
     grid_layout.setColumnStretch(0, 1)
@@ -172,6 +232,12 @@ class CyberSecHUD(QMainWindow):
     self.worker.update_signal.connect(self.append_sec_log)
     self.worker.start()
 
+  def run_port_scan(self):
+    target = self.host_input.text().strip() or "127.0.0.1"
+    self.port_worker = PortScannerWorker(target)
+    self.port_worker.update_signal.connect(self.append_sec_log)
+    self.port_worker.start()
+
   def append_sec_log(self, text):
     self.sec_log.append(text)
 
@@ -180,13 +246,13 @@ class CyberSecHUD(QMainWindow):
     if self.alarm_active:
       self.btn_alert.setStyleSheet(
           "background-color: #EF4444; color: white; border-radius: 4px; padding:"
-          " 10px; font-weight: bold;"
+          " 8px 12px; font-weight: bold;"
       )
       self.sec_log.append("[!] WARNING: Intrusion Alarm State ACTIVATED!")
     else:
       self.btn_alert.setStyleSheet(
           "background-color: #3B82F6; color: white; border-radius: 4px; padding:"
-          " 10px; font-weight: bold;"
+          " 8px 12px; font-weight: bold;"
       )
       self.sec_log.append(
           "[+] Intrusion Alarm Disarmed. System in normal monitor mode."
